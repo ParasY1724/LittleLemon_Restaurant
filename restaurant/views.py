@@ -1,8 +1,28 @@
 # from django.http import HttpResponse
 from django.shortcuts import render
 from .forms import BookingForm
-from .models import Menu
+from .models import Category,MenuItem,Cart,Order,OrderItem,Booking,Menu
+from .serializers import MenuItemSerializer
+from rest_framework import generics
+from rest_framework.permissions import IsAuthenticated,IsAdminUser
+from .permissions import IsManager, IsDeliveryCrew 
 
+class MenuItemsView(generics.ListAPIView) :
+    queryset = MenuItem.objects.all()
+    serializer_class = MenuItemSerializer
+    permission_classes = [IsAuthenticated]
+
+class SingleMenuItemsView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = MenuItem.objects.all()
+    serializer_class = MenuItemSerializer
+    def get_permissions(self):
+        if self.request.method == 'GET' :
+            permission_classes = [IsAuthenticated]
+        else :
+            permission_classes = [IsManager]
+        return[permission() for permission in permission_classes]
+
+        
 
 
 # Create your views here.
@@ -21,7 +41,7 @@ def book(request):
     context = {'form':form}
     return render(request, 'book.html', context)
 
-# Add your code here to create new views
+# odd views
 def menu(request):
     menu_data = Menu.objects.all()
     main_data = { "menu" :menu_data}
