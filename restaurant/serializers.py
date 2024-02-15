@@ -12,3 +12,8 @@ class MenuItemSerializer(serializers.ModelSerializer):
         model = MenuItem
         fields = ['title','price','featured','category']
 
+class UserListSerializer(serializers.ModelSerializer) :
+    id = serializers.IntegerField(read_only = True)
+    class Meta:
+        model = User
+        fields = ['id','username','email']
