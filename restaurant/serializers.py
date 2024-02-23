@@ -17,3 +17,12 @@ class UserListSerializer(serializers.ModelSerializer) :
     class Meta:
         model = User
         fields = ['id','username','email']
+
+class CartSerializer(serializers.ModelSerializer):
+    user = serializers.IntegerField(write_only = True)
+    id = serializers.IntegerField(write_only = True)
+    class Meta:
+        model = Cart
+        fields = '__all__'
+
+    

@@ -9,6 +9,8 @@ urlpatterns = [
     path('groups/manager/users/<int:pk>/',views.ManagerDestroyView.as_view(),name="Manager_killer"),
     path('groups/delivery-crew/users',views.DeliveryCrewView.as_view(),name="Delivey_view"),
     path('groups/delivery-crew/users/<int:pk>/',views.DeliveryDestroyView.as_view(),name="Delivey_view"),
+    path('cart/menu-items',views.CartViewer.as_view(),name="Cart_View"),
+
     path('', views.home, name="home"),
     path('about/', views.about, name="about"),
     path('book/', views.book, name="book"),

@@ -3,7 +3,7 @@ from django.shortcuts import render
 from .forms import BookingForm
 from django.contrib.auth.models import Group, User
 from .models import Category,MenuItem,Cart,Order,OrderItem,Booking,Menu
-from .serializers import MenuItemSerializer,UserListSerializer
+from .serializers import MenuItemSerializer,UserListSerializer,CartSerializer
 from django.shortcuts import get_object_or_404
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated,IsAdminUser
@@ -77,6 +77,35 @@ class DeliveryDestroyView(generics.DestroyAPIView):
         return Response({'message':'User removed Managers'}, status.HTTP_200_OK)   
 
 
+
+class CartViewer(generics.ListCreateAPIView or  generics.DestroyAPIView):
+    serializer_class = CartSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        try:
+            return Cart.objects.filter(user=user)
+        except Cart.DoesNotExist:
+            return Cart.objects.none()
+        
+    def post(self, request, *args, **kwargs):
+        id = request.data['menuitem']
+        quantity = request.data['quantity']
+        item = get_object_or_404(MenuItem,id=id)
+        price = int(quantity) * item.price
+        try:
+            Cart.objects.create(user=request.user, quantity=quantity, unit_price=item.price, price=price, menuitem_id=id)
+        except:
+            return Response({'message':'Item already in cart'}, status.HTTP_409_CONFLICT)
+        return Response({'message':'Item added to cart!'}, status.HTTP_201_CREATED)
+    
+    def delete(self, request, *args, **kwargs):
+        Cart.objects.filter(user=request.user).delete()
+        return Response({'message':'All Items removed from cart'}, status.HTTP_200_OK)
+
+class Orderviwer(generics.RetrieveDestroyAPIView or generics.ListAPIView):
+    pass
 
 def home(request):
     return render(request, 'index.html')
