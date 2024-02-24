@@ -10,8 +10,9 @@ urlpatterns = [
     path('groups/delivery-crew/users',views.DeliveryCrewView.as_view(),name="Delivey_view"),
     path('groups/delivery-crew/users/<int:pk>/',views.DeliveryDestroyView.as_view(),name="Delivey_view"),
     path('cart/menu-items',views.CartViewer.as_view(),name="Cart_View"),
-
-    path('', views.home, name="home"),
+    path('cart/orders',views.Orderviewer.as_view(),name="Order_view"),
+    path('cart/orders/<int:pk>/',views.OrderSingleItemViewer.as_view(),name="OrderItem_view"),
+    path('home/', views.home, name="home"),
     path('about/', views.about, name="about"),
     path('book/', views.book, name="book"),
     path('menu/',views.menu,name="menu"),

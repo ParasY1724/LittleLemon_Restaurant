@@ -3,13 +3,14 @@ from django.shortcuts import render
 from .forms import BookingForm
 from django.contrib.auth.models import Group, User
 from .models import Category,MenuItem,Cart,Order,OrderItem,Booking,Menu
-from .serializers import MenuItemSerializer,UserListSerializer,CartSerializer
+from .serializers import MenuItemSerializer,UserListSerializer,CartSerializer,OrderItemSerializer,OrderSerializer,OrderInsertSerializer
 from django.shortcuts import get_object_or_404
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated,IsAdminUser
 from .permissions import IsManager, IsDeliveryCrew 
 from rest_framework.response import Response
 from rest_framework import status
+from datetime import date
 
 class MenuItemsView(generics.ListAPIView) :
     queryset = MenuItem.objects.all()
@@ -104,8 +105,85 @@ class CartViewer(generics.ListCreateAPIView or  generics.DestroyAPIView):
         Cart.objects.filter(user=request.user).delete()
         return Response({'message':'All Items removed from cart'}, status.HTTP_200_OK)
 
-class Orderviwer(generics.RetrieveDestroyAPIView or generics.ListAPIView):
-    pass
+class Orderviewer( generics.ListCreateAPIView):
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        user = self.request.user
+        if IsManager().has_permission(self.request, self) or IsAdminUser().has_permission(self.request, self):
+            return Order.objects.all()
+        elif IsDeliveryCrew().has_permission(self.request, self):
+            return Order.objects.filter(delivery_crew=user)
+        else:
+            return Order.objects.filter(user=user)
+        
+    def post(self, request, *args, **kwargs):
+        try:
+            cart_list = Cart.objects.filter(user=request.user)
+            total = 0
+            order = Order.objects.create(user=request.user, status=False, total=0, date=date.today())
+            for i in cart_list :
+                total += i.price
+                OrderItem.objects.create(order=order, quantity=i.quantity, unit_price=i.unit_price, price=i.price, menuitem= i.menuitem)
+            # order.total = total
+            # order.save()
+            cart_list.delete()
+        except Cart.DoesNotExist :
+            return Response({'message':'cart is empty'},status.HTTP_200_OK)
+    
+        return Response({'message' : 'ordered successfull'},status.HTTP_200_OK)
+
+class OrderSingleItemViewer(generics.ListAPIView):
+
+    def get_serializer_class(self):
+        if self.request.method == 'GET' :
+            return OrderItemSerializer
+        else :
+            return OrderSerializer  
+
+    def get_permissions(self):
+        user = self.request.user
+        method = self.request.method
+        order = Order.objects.filter(pk=self.kwargs['pk']).first()
+        if order and user == order.user and method == 'GET':
+            permission_classes = [IsAuthenticated]
+        elif method == 'PUT' or method == 'DELETE':
+            permission_classes = [IsManager | IsAdminUser]
+        else :
+            permission_classes = [IsDeliveryCrew | IsManager | IsAdminUser]
+        return[permission() for permission in permission_classes] 
+        
+    def get_queryset(self, *args, **kwargs):
+        query = OrderItem.objects.filter(order_id=self.kwargs['pk'])
+        return query
+    
+    def delete(self, request, *args, **kwargs):
+        order = Order.objects.get(pk=self.kwargs['pk'])
+        order_number = str(order.id)
+        order.delete()
+        return Response({'message':f'Order #{order_number} was deleted'}, status.HTTP_200_OK)
+    
+    def patch(self, request, *args, **kwargs):
+        try:
+            order = Order.objects.get(pk=self.kwargs['pk'])
+        except Order.DoesNotExist:
+            return Response({'error': 'Order does not exist.'}, status=status.HTTP_404_NOT_FOUND)
+
+        order.status = not order.status
+        order.save()
+        return Response({'message': 'Status of order #' + str(order.id) + ' changed to ' + str(order.status)}, status=status.HTTP_200_OK)
+
+    def put(self, request, *args, **kwargs):
+        serialized_item = OrderInsertSerializer(data=request.data)
+        serialized_item.is_valid(raise_exception=True)
+        order_pk = self.kwargs['pk']
+        crew_pk = request.data['delivery_crew'] 
+        order = get_object_or_404(Order, pk=order_pk)
+        crew = get_object_or_404(User, pk=crew_pk)
+        order.delivery_crew = crew
+        order.save()
+        return Response({'message':str(crew.username)+' was assigned to order #'+str(order.id)}, status.HTTP_201_CREATED)
+
 
 def home(request):
     return render(request, 'index.html')
