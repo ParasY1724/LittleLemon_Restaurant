@@ -6,25 +6,49 @@ from .models import Category,MenuItem,Cart,Order,OrderItem,Booking,Menu
 from .serializers import MenuItemSerializer,UserListSerializer,CartSerializer,OrderItemSerializer,OrderSerializer,OrderInsertSerializer
 from django.shortcuts import get_object_or_404
 from rest_framework import generics
+from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 from rest_framework.permissions import IsAuthenticated,IsAdminUser
 from .permissions import IsManager, IsDeliveryCrew 
 from rest_framework.response import Response
 from rest_framework import status
 from datetime import date
+from django.core.paginator import Paginator,EmptyPage
 
 class MenuItemsView(generics.ListAPIView) :
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
-    permission_classes = [IsAuthenticated]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
+    permission_classes = []
+
+    def get(self, request, *args, **kwargs):
+        items = self.queryset
+        search = request.query_params.get('search')
+        ordering = request.query_params.get('ordering')
+        page = request.query_params.get('page',default = 1)
+        if search :
+            items = items.filter(category__title=search).union(items.filter(title__icontains=search))
+        if ordering :
+            items = items.order_by(ordering)
+
+        paginator = Paginator(items,per_page = 2)
+        try :
+            items = paginator.page(number=page)
+        except EmptyPage :
+            items = []
+        serialized_item = MenuItemSerializer(items,many=True)
+        return Response(serialized_item.data)
+        
 
 class SingleMenuItemsView(generics.RetrieveUpdateDestroyAPIView):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
+
     def get_permissions(self):
         if self.request.method == 'GET' :
-            permission_classes = [IsAuthenticated]
+            permission_classes = []
         else :
-            permission_classes = [IsManager]
+            permission_classes = [IsManager | IsAdminUser]
         return[permission() for permission in permission_classes]
 
 class ManagerView(generics.ListCreateAPIView) :
@@ -82,6 +106,8 @@ class DeliveryDestroyView(generics.DestroyAPIView):
 class CartViewer(generics.ListCreateAPIView or  generics.DestroyAPIView):
     serializer_class = CartSerializer
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
+
 
     def get_queryset(self):
         user = self.request.user
@@ -108,6 +134,8 @@ class CartViewer(generics.ListCreateAPIView or  generics.DestroyAPIView):
 class Orderviewer( generics.ListCreateAPIView):
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
+
     def get_queryset(self):
         user = self.request.user
         if IsManager().has_permission(self.request, self) or IsAdminUser().has_permission(self.request, self):
@@ -134,6 +162,8 @@ class Orderviewer( generics.ListCreateAPIView):
         return Response({'message' : 'ordered successfull'},status.HTTP_200_OK)
 
 class OrderSingleItemViewer(generics.ListAPIView):
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
+
 
     def get_serializer_class(self):
         if self.request.method == 'GET' :
